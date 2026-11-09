@@ -20,15 +20,15 @@ Without OpenRouter you can still use visual-only mode: no voice, no cost.
 
 ## Install
 
-1. Get `lecture-video-explainer.skill` (build it below) and add it as a skill in Claude Cowork.
-2. Connect the OpenRouter connector.
-3. Upload your slides.
+1. Download `lecture-video-explainer.skill` from the [latest release](../../releases/latest).
+2. In Claude, open Settings, go to the skills section and upload the `.skill` file.
+3. Connect the OpenRouter connector.
+4. Upload your slides.
 
-To build the file from this repository:
+To build the file from this repository instead:
 
 ```bash
-cd lecture-video-explainer
-zip -r ../lecture-video-explainer.skill . -x "*.DS_Store"
+zip -r lecture-video-explainer.skill lecture-video-explainer -x "*.DS_Store"
 ```
 
 For Claude Code, copy the `lecture-video-explainer/` folder to `~/.claude/skills/` instead.
