@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="de" data-mode="light" data-style="modern" data-hold-label="kurz anschauen" data-think-label="Überleg kurz …" data-slide-word="Folie">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>THEMA – Vorlesungsvideo</title>
+<!--
+  VIDEO TEMPLATE – internal scene file that scripts/render.py turns into the MP4.
+  It is never delivered to the user; the user only gets the MP4.
+  ===============================================================
+  <html data-silent>          visual-only mode: no audio; scene durations come from reading time
+                              (≈ 3 words/s + 1.5 s, +2 s with graphic/code/table/image, min 4 s) unless
+                              data-dur is set. Give outline scenes an explicit data-dur.
+  <html lang>                 video language (hyphenation, subtitle language). Translate the labels in
+                              data-hold-label / data-think-label / data-slide-word for other languages.
+                              (This template uses German as the example.)
+  Each scene: <section class="scene"> inside #stage. Attributes:
+    data-audio="audio/s01.wav"  audio of this scene (one .wav or .mp3 per scene)
+    data-dur="9.4"              duration in s (only needed without audio)
+    data-dense                  dense scene → hold after the narration
+    data-hold="3.2"             hold time in s (overrides the automatic value)
+    data-think                  quiz question: the hold is shown as "think about it" with a countdown
+    data-source="12–14"         slide numbers (shown as "<slide word> 12–14")
+    data-chapter="Name"         scene starts a chapter (MP4 chapter marks, outline)
+  In every scene: <template class="caption">narration</template>  → subtitle track in the MP4
+    (the on-screen spelling, NOT the phonetic TTS version)
+  Elements: data-at="0.4"         appears at 40 % of the scene's narration time (fraction 0–1)
+            data-focus="0.4-0.7"  highlighted during this range
+  Code:     <pre class="code" data-lang="sql" data-focus-lines="2-3@0.1-0.5; 5@0.5-1">…</pre>
+            (syntax highlighting is automatic; sql | python | java | js | plain)
+  Formulas: MathML (<math display="block">…</math>) inside <div class="formula">.
+  Tables:   <table class="data">.
+  Outline:  <ol class="toc" data-toc></ol> – filled automatically with every chapter, its time range
+            and slides. Give the outline scene data-dense + data-hold (~3 s).
+  Content only inside .safe. Elements that deliberately extend beyond the edge: data-deko.
+  Layout check: video.html?check=1 (render.py --check).
+-->
+<style>
+  :root{
+    --bg:#F6F6F3; --surface:#FFFFFF; --ink:#15181E; --muted:#4A5160;
+    --accent:#2457D6; --accent-soft:#E3EBFF; --warn:#B4400C; --warn-soft:#FDEBDD;
+    --ok:#1E7A3C; --ok-soft:#E1F3E6; --line:#D5D8DE;
+    --code-bg:#11141B; --code-ink:#E8ECF3; --th:#EEF0F4;
+    --accent2:#7C3AED; --glow:rgba(36,87,214,.16); --glow2:rgba(124,58,237,.12); --shadow:0 10px 30px rgba(20,24,40,.08);
+    --font: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+    --math: "STIX Two Math", "Cambria Math", "Latin Modern Math", "DejaVu Serif", serif;
+  }
+  /* ===== LOOK: data-mode = light | dark · data-style = simple | modern | slides | topic =====
+     Change colors only via these tokens. For "slides" set --accent/--accent2 from scripts/palette.py;
+     for "topic" pick an accent pair that fits the subject and add one decorative motif (see visual-rules.md). */
+  html[data-mode="dark"]{
+    --bg:#0F1218; --surface:#181C25; --ink:#F2F4F8; --muted:#A9B1C1;
+    --accent:#7AA2FF; --accent-soft:#1E2A47; --warn:#FF9F6B; --warn-soft:#3A2418;
+    --ok:#5BD08A; --ok-soft:#173224; --line:#2C3342; --code-bg:#0A0D12; --th:#222836;
+    --accent2:#B794F6; --glow:rgba(122,162,255,.22); --glow2:rgba(183,148,246,.16); --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  html[data-style="simple"]{ --shadow:none; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#0B0C0F;overflow:hidden;font-family:var(--font)}
+  #viewport{position:fixed;inset:0;overflow:hidden}
+  #frame{position:absolute;left:0;top:0}
+  #stage{position:absolute;left:0;top:0;width:1920px;height:1080px;background:var(--bg);
+         color:var(--ink);transform-origin:0 0;overflow:hidden}
+  .scene{position:absolute;inset:0;opacity:0;visibility:hidden}
+  /* Safe area: 96 px left/right, 64 px top, bottom 64 px + 56 px footer */
+  .safe{position:absolute;left:96px;right:96px;top:64px;bottom:120px;display:flex;flex-direction:column;gap:36px}
+  .safe.center{justify-content:center}
+  h1{font-size:76px;line-height:1.12;font-weight:750;letter-spacing:-0.01em;hyphens:auto}
+  h2{font-size:64px;line-height:1.15;font-weight:700;hyphens:auto}
+  .sub{font-size:40px;line-height:1.3;color:var(--muted)}
+  p,li{font-size:40px;line-height:1.32;hyphens:auto;overflow-wrap:break-word}
+  ul.points{list-style:none;display:flex;flex-direction:column;gap:26px}
+  ul.points li{padding-left:56px;position:relative;max-width:1500px}
+  ul.points li::before{content:"";position:absolute;left:8px;top:.48em;width:20px;height:20px;border-radius:50%;background:var(--accent)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;min-height:0}
+  .card{background:var(--surface);border:2px solid var(--line);border-radius:24px;padding:36px 40px;display:flex;flex-direction:column;gap:18px;min-height:0}
+  .card h3{font-size:44px;line-height:1.2;font-weight:700}
+  .label{font-size:32px;line-height:1.25}
+  .tag{display:inline-block;font-size:30px;font-weight:650;color:var(--warn);background:var(--warn-soft);padding:6px 18px;border-radius:12px}
+  .flow{display:flex;align-items:center;gap:20px;flex:1;min-height:0}
+  .flow .step{flex:1;min-height:260px;background:var(--surface);border:2px solid var(--line);border-radius:20px;padding:28px;display:flex;flex-direction:column;justify-content:center;gap:12px;min-width:0}
+  .flow .arrow{align-self:center;font-size:48px;color:var(--muted)}
+  .figure{flex:1;min-height:0;display:flex;gap:48px;align-items:stretch}
+  .figure img{flex:1;min-width:0;min-height:0;object-fit:contain;background:#fff;border:2px solid var(--line);border-radius:16px}
+  .figure svg{flex:1;min-width:0;min-height:0}
+  .figure aside{width:520px;display:flex;flex-direction:column;justify-content:center;gap:24px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;align-items:start;min-height:0}
+  .focus{color:var(--accent)} .card.focus{border-color:var(--accent);background:var(--accent-soft)}
+  /* Code */
+  pre.code{font-family:var(--mono);font-size:36px;line-height:1.42;background:var(--code-bg);color:var(--code-ink);
+           border:2px solid var(--line);border-radius:20px;padding:32px 40px;white-space:pre;overflow:hidden;tab-size:4;align-self:flex-start;max-width:100%}
+  pre.code .ln{display:block;transition:none}
+  pre.code .ln.dim{opacity:.38}
+  pre.code .kw{color:#8AB4FF;font-weight:600} pre.code .str{color:#9BE29B} pre.code .num{color:#F5C26B}
+  pre.code .com{color:#9AA3B5;font-style:italic} pre.code .fn{color:#F2A7D8}
+  /* Formulas (MathML) */
+  .formula{font-size:84px;padding:24px 0;align-self:center}
+  .formula math{font-family:var(--math)}
+  .formula.small{font-size:60px}
+  /* Tables */
+  table.data{border-collapse:separate;border-spacing:0;font-size:36px;line-height:1.3;background:var(--surface);
+             border:2px solid var(--line);border-radius:16px;overflow:hidden;align-self:flex-start}
+  table.data th,table.data td{padding:14px 24px;text-align:left;border-bottom:2px solid var(--line)}
+  table.data th{background:var(--th);font-weight:700}
+  table.data tr:last-child td{border-bottom:none}
+  table.data td.num{text-align:right;font-variant-numeric:tabular-nums}
+  table.data sub, table.data sup, p sub, p sup, li sub, li sup{font-size:.88em}
+  /* Explanation text box (visual-only mode: carries what the narrator would say) */
+  .explain{background:var(--surface);border:2px solid var(--line);border-left:10px solid var(--accent);border-radius:16px;
+           padding:24px 32px;font-size:36px;line-height:1.35;max-width:1500px;hyphens:auto}
+  /* Outline (table of contents) */
+  ol.toc{list-style:none;display:grid;grid-auto-flow:column;grid-template-rows:repeat(var(--rows,6),auto);
+         grid-template-columns:repeat(var(--cols,1),1fr);column-gap:64px;row-gap:14px;align-content:start}
+  ol.toc li{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;column-gap:28px;padding:12px 24px;
+            border-radius:14px;background:var(--surface);border:2px solid var(--line);font-size:36px;line-height:1.25}
+  ol.toc .time{min-width:5.4em;font-variant-numeric:tabular-nums;color:var(--accent);font-weight:650;white-space:nowrap}
+  ol.toc .title{font-weight:600;min-width:0;overflow-wrap:break-word;hyphens:auto}
+  ol.toc .slides{font-size:28px;color:var(--muted);white-space:nowrap}
+  ol.toc.compact li{font-size:32px;padding:10px 20px} ol.toc.compact .slides{font-size:28px}
+  /* Quiz */
+  .quiz-kicker{font-size:34px;font-weight:700;color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+  .quiz-q{font-size:60px;line-height:1.2;font-weight:700;max-width:1500px;hyphens:auto}
+  .quiz-a{background:var(--ok-soft);border:2px solid var(--ok);border-radius:24px;padding:36px 44px;display:flex;flex-direction:column;gap:16px}
+  .quiz-a .label{color:var(--ok);font-weight:700}
+  /* Footer */
+  #footer{position:absolute;left:96px;right:96px;bottom:64px;height:40px;display:flex;align-items:center;justify-content:space-between;gap:32px;z-index:5}
+  #source{font-size:24px;color:var(--muted);white-space:nowrap}
+  #hold{font-size:24px;color:var(--muted);display:flex;align-items:center;gap:12px;opacity:0;white-space:nowrap}
+  #hold.think{color:var(--accent);font-weight:650}
+  #hold .ring{width:120px;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+  #hold .ring i{display:block;height:100%;width:0;background:currentColor}
+  /* ----- styles beyond "simple" ----- */
+  html:not([data-style="simple"]) #stage{background:
+      radial-gradient(1100px 700px at 92% -10%, var(--glow), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, var(--glow2), transparent 60%), var(--bg)}
+  html:not([data-style="simple"]) h2{position:relative;padding-bottom:22px}
+  html:not([data-style="simple"]) h2::after{content:"";position:absolute;left:0;bottom:0;width:132px;height:8px;border-radius:4px;
+      background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  html:not([data-style="simple"]) .card, html:not([data-style="simple"]) .flow .step, html:not([data-style="simple"]) ol.toc li,
+  html:not([data-style="simple"]) table.data, html:not([data-style="simple"]) .explain{box-shadow:var(--shadow)}
+  html:not([data-style="simple"]) .card{border-top:6px solid var(--accent)}
+  html:not([data-style="simple"]) ul.points li::before{background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  html:not([data-style="simple"]) .sub{color:var(--accent);font-weight:650;letter-spacing:.02em}
+  html:not([data-style="simple"]) #source{background:var(--surface);border:2px solid var(--line);border-radius:999px;padding:2px 16px}
+  html:not([data-style="simple"]) #source:empty{display:none}
+  html[data-style="slides"] #stage::before{content:"";position:absolute;left:0;right:0;top:0;height:12px;z-index:4;
+      background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  /* chapter title card (use at chapter starts in modern/slides/topic) */
+  .chapter-card{display:flex;align-items:center;gap:56px}
+  .chapter-card .num{font-size:180px;line-height:1;font-weight:800;color:var(--accent);
+      background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  html[data-style="simple"] .chapter-card .num{-webkit-text-fill-color:var(--accent)}
+  .chapter-card h1{max-width:1300px}
+  /* decorative topic motif: inline SVG, behind content, never carries information */
+  .motif{position:absolute;inset:0;z-index:0;opacity:.07;pointer-events:none;color:var(--accent)}
+  .motif svg{width:100%;height:100%}
+  .safe{z-index:1}
+  #report{position:fixed;right:12px;top:12px;max-width:640px;max-height:90vh;overflow:auto;background:#fff;color:#111;font:14px/1.4 monospace;padding:12px;border-radius:8px;z-index:40;display:none}
+  body.check #report{display:block}
+</style>
+</head>
+<body>
+<div id="viewport">
+<div id="frame">
+<div id="stage">
+
+  <!-- ===== BEISPIELSZENEN – ersetzen ===== -->
+  <section class="scene" data-dur="9" data-source="1–2" data-chapter="Intro">
+    <template class="caption">In diesem Video geht es um das Thema der Einheit aus der Vorlesung Modul bei Prof. Name. Wir schauen uns drei Blöcke an: A, B und C.</template>
+    <div class="safe center">
+      <div class="sub" data-at="0">MODUL · Prof. NAME</div>
+      <h1 data-at="0">THEMA DER EINHEIT</h1>
+      <ul class="points" style="margin-top:24px">
+        <li data-at="0.45">Block A</li>
+        <li data-at="0.6">Block B</li>
+        <li data-at="0.75">Block C</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="scene" data-dur="6" data-dense data-hold="3" data-source="2">
+    <template class="caption">So ist das Video aufgebaut: erst Block A, dann Block B, danach die Zusammenfassung und zum Schluss Fragen zum Selbsttest.</template>
+    <div class="safe">
+      <h2>Gliederung</h2>
+      <ol class="toc" data-toc></ol>
+    </div>
+  </section>
+
+  <section class="scene" data-dur="3" data-source="4" data-chapter="Block A">
+    <template class="caption">Block A.</template>
+    <div class="safe center"><div class="chapter-card"><span class="num" data-at="0">1</span><h1 data-at="0">Block A</h1></div></div>
+  </section>
+
+  <section class="scene" data-dur="12" data-source="4">
+    <template class="caption">Die Vorlesung unterscheidet zwei Varianten. Variante eins bedeutet dies, Variante zwei bedeutet das.</template>
+    <div class="safe">
+      <h2>Begriff aus der Vorlesung</h2>
+      <div class="cols">
+        <div class="card" data-at="0.1" data-focus="0.1-0.5"><h3>Variante 1</h3><p>Stichwort aus der Folie</p></div>
+        <div class="card" data-at="0.5" data-focus="0.5-1"><h3>Variante 2</h3><p>Stichwort aus der Folie</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene" data-dur="14" data-dense data-source="9" data-chapter="Block B">
+    <template class="caption">So sieht die Abfrage aus der Vorlesung aus. Zuerst wählen wir die Spalten, dann verbinden wir beide Tabellen über die Kundennummer, und am Ende filtern wir nach dem Jahr.</template>
+    <div class="safe">
+      <h2>SQL-Beispiel von Folie 9</h2>
+<pre class="code" data-lang="sql" data-at="0.05" data-focus-lines="1@0.1-0.35; 2-3@0.35-0.7; 4@0.7-1">SELECT k.name, SUM(b.betrag) AS umsatz
+FROM kunde k
+JOIN bestellung b ON b.kunden_nr = k.kunden_nr
+WHERE b.jahr = 2025 -- nur aktuelles Jahr
+GROUP BY k.name;</pre>
+    </div>
+  </section>
+
+  <section class="scene" data-dur="10" data-dense data-source="11">
+    <template class="caption">Der Deckungsbeitrag ist der Umsatz minus die variablen Kosten.</template>
+    <div class="safe">
+      <h2>Formel von Folie 11</h2>
+      <div class="formula" data-at="0.1">
+        <math display="block"><mi>DB</mi><mo>=</mo><mi>U</mi><mo>−</mo><msub><mi>K</mi><mi>v</mi></msub></math>
+      </div>
+      <table class="data" data-at="0.5">
+        <tr><th>Größe</th><th>Bedeutung</th></tr>
+        <tr><td>U</td><td>Umsatz</td></tr>
+        <tr><td>K<sub>v</sub></td><td>variable Kosten</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="scene" data-dur="12" data-dense data-source="3, 8, 12" data-chapter="Zusammenfassung">
+    <template class="caption">Fassen wir zusammen. Erstens Kernpunkt eins, zweitens Kernpunkt zwei und drittens Kernpunkt drei.</template>
+    <div class="safe">
+      <h2>Zusammenfassung</h2>
+      <div class="grid">
+        <div class="card" data-at="0.05"><h3>Kernpunkt 1</h3><span class="label">kurz erklärt</span></div>
+        <div class="card" data-at="0.35"><h3>Kernpunkt 2</h3><span class="label">kurz erklärt</span></div>
+        <div class="card" data-at="0.65"><h3>Kernpunkt 3</h3><span class="label">kurz erklärt</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene" data-dur="4" data-think data-hold="6" data-source="4" data-chapter="Teste dich">
+    <template class="caption">Frage eins: Worin unterscheiden sich die beiden Varianten?</template>
+    <div class="safe center">
+      <div class="quiz-kicker">Teste dich · Frage 1 von 3</div>
+      <div class="quiz-q">Worin unterscheiden sich die beiden Varianten?</div>
+    </div>
+  </section>
+
+  <section class="scene" data-dur="7" data-source="4">
+    <template class="caption">Variante eins bedeutet dies, Variante zwei bedeutet das. Nachlesen kannst du das auf Folie vier.</template>
+    <div class="safe center">
+      <div class="quiz-kicker">Teste dich · Frage 1 von 3</div>
+      <div class="quiz-q" style="font-size:44px;color:var(--muted)">Worin unterscheiden sich die beiden Varianten?</div>
+      <div class="quiz-a" data-at="0.05"><span class="label">Antwort</span><p>Variante 1: dies · Variante 2: das</p></div>
+    </div>
+  </section>
+  <!-- ===== ENDE BEISPIELSZENEN ===== -->
+
+  <div id="footer">
+    <span id="source"></span>
+    <span id="hold"><span class="txt"></span> <span class="ring"><i></i></span></span>
+  </div>
+</div>
+</div>
+</div>
+<pre id="report"></pre>
+
+<script>
+(() => {
+  // ---------- Constants ----------
+  const LEAD = 0.2, TAIL = 0.15, FADE_IN = 0.2, FADE_OUT = 0.15, REVEAL = 0.35, REVEAL_SHIFT = 24;
+  const CAP_MAX = 84;            // characters per subtitle (≈ 2 lines of 42)
+  const params = new URLSearchParams(location.search);
+  const RENDER = params.has('render'), CHECK = params.has('check');
+  if (RENDER) document.body.classList.add('render');
+  if (CHECK) document.body.classList.add('check');
+  const root = document.documentElement;
+  const LABEL_HOLD = root.dataset.holdLabel || 'kurz anschauen';
+  const LABEL_THINK = root.dataset.thinkLabel || 'Überleg kurz …';
+  const SLIDE = root.dataset.slideWord || 'Folie';
+  const SILENT = root.hasAttribute('data-silent');
+
+  const $ = s => document.querySelector(s);
+  const stage = $('#stage'), frame = $('#frame');
+  const scenes = [...stage.querySelectorAll('.scene')];
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- Syntax highlighting for <pre class="code"> ----------
+  const KW = {
+    sql: 'select from where join inner left right full outer on group by order having as and or not in is null like between distinct count sum avg min max insert into values update set delete create table view index primary key foreign references drop alter add union all case when then else end exists limit with desc asc',
+    python: 'def return if elif else for while in not and or import from as class try except finally with lambda yield none true false pass break continue is print self',
+    java: 'public private protected class interface extends implements static final void int long double float boolean char string new return if else for while do switch case break continue try catch finally throw throws import package this super null true false',
+    js: 'const let var function return if else for while do switch case break continue new class extends import export from try catch finally throw null undefined true false this async await of in'
+  };
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  function hlLine(line, lang){
+    if (lang === 'plain' || !KW[lang]) return esc(line);
+    const kws = new Set(KW[lang].split(' '));
+    const com = lang === 'sql' ? '--.*$' : lang === 'python' ? '#.*$' : '\\/\\/.*$';
+    const re = new RegExp(`(${com})|('(?:[^'\\\\]|\\\\.)*'|"(?:[^"\\\\]|\\\\.)*")|(\\b\\d+(?:[.,]\\d+)?\\b)|([A-Za-z_][\\w]*)(?=\\s*\\()|([A-Za-z_][\\w]*)`, 'g');
+    let out = '', last = 0, m;
+    while ((m = re.exec(line))){
+      out += esc(line.slice(last, m.index)); last = re.lastIndex;
+      if (m[1]) out += `<span class="com">${esc(m[1])}</span>`;
+      else if (m[2]) out += `<span class="str">${esc(m[2])}</span>`;
+      else if (m[3]) out += `<span class="num">${m[3]}</span>`;
+      else if (m[4]) out += kws.has(m[4].toLowerCase()) ? `<span class="kw">${m[4]}</span>` : `<span class="fn">${m[4]}</span>`;
+      else out += kws.has(m[5].toLowerCase()) ? `<span class="kw">${m[5]}</span>` : esc(m[5]);
+    }
+    return out + esc(line.slice(last));
+  }
+  document.querySelectorAll('pre.code').forEach(pre => {
+    const lang = (pre.dataset.lang || 'plain').toLowerCase();
+    const lines = pre.textContent.replace(/^\n/, '').replace(/\s+$/, '').split('\n');
+    pre.innerHTML = lines.map(l => `<span class="ln">${hlLine(l, lang) || ' '}</span>`).join('');
+  });
+
+  // ---------- Scaling (1:1 for rendering; scaled to fit if opened manually) ----------
+  function fit(){
+    const s = (RENDER || CHECK) ? 1 : Math.min(innerWidth/1920, innerHeight/1080);
+    stage.style.transform = `scale(${s})`;
+    frame.style.left = ((innerWidth - 1920*s)/2) + 'px'; frame.style.top = ((innerHeight - 1080*s)/2) + 'px';
+  }
+  addEventListener('resize', fit);
+
+  // ---------- Subtitle chunking ----------
+  const ABBR = /\b(Prof|Dr|bzw|ca|vgl|Nr|usw|etc|ggf|inkl|evtl|z\.\s?B|d\.\s?h|u\.\s?a|e\.\s?g|i\.\s?e|Mio|Mrd|Abb|Kap|S)\.$/i;
+  function splitLong(s){
+    const out = []; let rest = s;
+    while (rest.length > CAP_MAX){
+      let cut = -1;
+      for (const sep of [', ', ' – ', ' - ', ': ', ' und ', ' oder ', ' and ', ' or ', ' ']){
+        const i = rest.lastIndexOf(sep, CAP_MAX);
+        if (i > CAP_MAX*0.45 && sep !== ' '){ cut = i + sep.trimEnd().length; break; }
+      }
+      if (cut < 1){ cut = rest.lastIndexOf(' ', CAP_MAX);
+        while (cut > 0 && ABBR.test(rest.slice(0, cut))) cut = rest.lastIndexOf(' ', cut - 1); }   // never break right after "Prof."
+      if (cut < 1) cut = CAP_MAX;
+      out.push(rest.slice(0, cut).trim()); rest = rest.slice(cut).trim();
+    }
+    if (rest) out.push(rest);
+    return out;
+  }
+  function chunkCaption(text){
+    // split sentences (abbreviations like "Prof." or "e.g." are not sentence ends) …
+    const parts = text.replace(/\s+/g,' ').trim().split(/(?<=[.!?…])\s+(?=[A-ZÄÖÜ0-9"„(])/);
+    const sentences = [];
+    for (const p of parts){
+      if (sentences.length && ABBR.test(sentences[sentences.length-1])) sentences[sentences.length-1] += ' ' + p;
+      else sentences.push(p);
+    }
+    // … then pack into subtitles of max CAP_MAX characters
+    const out = [];
+    for (const s of sentences) for (const piece of splitLong(s)){
+      const prev = out[out.length-1];
+      if (prev && (prev.length + 1 + piece.length <= CAP_MAX) && (piece.length < 30 || prev.length < 30)) out[out.length-1] = prev + ' ' + piece;
+      else out.push(piece);
+    }
+    return out;
+  }
+
+  // ---------- Timeline ----------
+  const preset = window.PRESET_DURATIONS || {};
+  const wordsIn = el => (el.innerText || '').split(/\s+/).filter(Boolean).length;
+  const audioDuration = src => new Promise(res => {
+    const a = new Audio(); a.preload = 'metadata'; a.src = src;
+    a.onloadedmetadata = () => res(a.duration); a.onerror = () => res(null); setTimeout(() => res(null), 4000);
+  });
+  let timeline = [], total = 0, captions = [], chapters = [];
+  async function build(){
+    let t = 0; timeline = []; captions = []; chapters = [];
+    for (const [i, sc] of scenes.entries()){
+      const src = sc.dataset.audio || null;
+      let dur = preset[src] ?? (sc.dataset.dur ? parseFloat(sc.dataset.dur) : null);
+      if (dur == null && src) dur = await audioDuration(src);
+      if (dur == null && SILENT){
+        // reading time for visual-only mode
+        const words = wordsIn(sc), visual = sc.querySelector('img,svg,pre,table,math,.flow,ol.toc') ? 2 : 0;
+        dur = sc.querySelector('ol.toc') ? 8 : Math.max(4, 1.5 + words/3 + visual);
+      }
+      if (dur == null || isNaN(dur)) { console.warn('No duration for scene', i+1); dur = 5; }
+      const think = sc.hasAttribute('data-think'), dense = sc.hasAttribute('data-dense') || think;
+      const hold = sc.dataset.hold ? parseFloat(sc.dataset.hold)
+                 : think ? 6 : dense ? Math.min(5, Math.max(1.5, 1.5 + 0.06*wordsIn(sc))) : 0;
+      const capEl = sc.querySelector('template.caption');
+      const capText = capEl ? capEl.innerHTML.replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim() : '';
+      const e = { i, el: sc, start: t, audioStart: t + LEAD, audioDur: dur, hold, think,
+                  end: t + LEAD + dur + Math.max(TAIL, hold), src, audio: null,
+                  source: sc.dataset.source || '', chapter: sc.dataset.chapter || null, caption: capText,
+                  reveals: [...sc.querySelectorAll('[data-at]')], focus: [...sc.querySelectorAll('[data-focus]')],
+                  codeFocus: [...sc.querySelectorAll('pre.code[data-focus-lines]')].map(pre => ({ pre,
+                     rules: pre.dataset.focusLines.split(';').map(r => r.trim()).filter(Boolean).map(r => {
+                       const [lines, range] = r.split('@'); const [a,b] = range.split('-').map(parseFloat);
+                       const [l0,l1] = lines.split('-').map(n => parseInt(n,10)); return { l0, l1: l1 || l0, a, b }; }) })) };
+      // subtitles: spread chunks over the narration time proportionally to their length
+      if (capText){
+        const chunks = chunkCaption(capText), w = chunks.map(c => c.length + 8), sum = w.reduce((a,b)=>a+b,0);
+        let c0 = e.audioStart;
+        chunks.forEach((c, k) => { const d = dur * w[k]/sum; captions.push({ start:c0, end:c0+d, text:c, scene:i }); c0 += d; });
+      }
+      if (e.chapter || i === 0) chapters.push({ title: e.chapter || 'Start', start: t, scene: i });
+      timeline.push(e); t = e.end;
+    }
+    total = t;
+    chapters.forEach((c, k) => c.end = k+1 < chapters.length ? chapters[k+1].start : total);
+    // slides per chapter (from data-source of its scenes), compressed to "3–5, 8"
+    chapters.forEach((c, k) => {
+      const nums = new Set(); const last = k+1 < chapters.length ? chapters[k+1].scene : timeline.length;
+      for (let j = c.scene; j < last; j++) (timeline[j].source.match(/\d+(?:\s*[–-]\s*\d+)?/g) || []).forEach(r => {
+        const [a,b] = r.split(/[–-]/).map(x => parseInt(x,10)); for (let n = a; n <= (b || a); n++) nums.add(n); });
+      const sorted = [...nums].sort((x,y) => x-y), parts = [];
+      for (const n of sorted){ const l = parts[parts.length-1]; if (l && n === l[1]+1) l[1] = n; else parts.push([n,n]); }
+      c.slides = parts.length > 4 ? `${sorted[0]}–${sorted[sorted.length-1]}` : parts.map(([a,b]) => a === b ? `${a}` : `${a}–${b}`).join(', ');
+    });
+    fillOutlines();
+    window.__timeline = timeline.map(e => ({ index:e.i, start:e.start, audioStart:e.audioStart, audioDur:e.audioDur,
+      hold:e.hold, end:e.end, audio:e.src, source:e.source, chapter:e.chapter, caption:e.caption }));
+    window.__captions = captions; window.__chapters = chapters; window.__duration = total;
+    window.__meta = { title: document.title, lang: root.lang || 'de', slideWord: SLIDE, silent: SILENT };
+  }
+
+  // ---------- Outline / table of contents ----------
+  function fillOutlines(){
+    document.querySelectorAll('ol.toc[data-toc]').forEach(ol => {
+      const host = ol.closest('.scene'), hostIdx = scenes.indexOf(host);
+      // the outline scene itself belongs to the intro chapter; list all chapters
+      const list = chapters;
+      const rows = list.length > 6 ? Math.ceil(list.length / 2) : list.length;
+      ol.style.setProperty('--rows', rows); ol.style.setProperty('--cols', list.length > 6 ? 2 : 1);
+      ol.classList.toggle('compact', list.length > 6);
+      ol.innerHTML = list.map((c, k) => `<li data-k="${k}"><span class="time">${fmt(c.start)}–${fmt(c.end)}</span>`
+        + `<span class="title">${esc(c.title)}</span><span class="slides">${c.slides ? SLIDE + ' ' + esc(c.slides) : ''}</span></li>`).join('');
+      host.dataset.tocIndex = hostIdx;
+    });
+  }
+
+  // ---------- Render one point in time (deterministic) ----------
+  const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+  const fmt = s => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+  const sceneAt = t => timeline.find(e => t < e.end) || timeline[timeline.length-1];
+  const holdEl = $('#hold'), holdTxt = $('#hold .txt'), holdRing = $('#hold .ring i');
+  function render(t){
+    t = Math.max(0, Math.min(t, total - 1e-3));
+    const cur = sceneAt(t);
+    for (const e of timeline){
+      if (e !== cur){ e.el.style.visibility = 'hidden'; e.el.style.opacity = 0; continue; }
+      const local = t - e.start, endLocal = e.end - e.start;
+      let op = Math.min(ease(local / FADE_IN), ease((endLocal - local) / FADE_OUT));
+      if (e.i === timeline.length-1 && local > endLocal - FADE_OUT) op = 1;
+      e.el.style.visibility = 'visible'; e.el.style.opacity = op;
+      const speech = (t - e.audioStart) / e.audioDur;
+      for (const r of e.reveals){
+        const at = parseFloat(r.dataset.at), p = ease(((t - e.audioStart) - at*e.audioDur) / REVEAL);
+        r.style.opacity = at <= 0 ? 1 : p;
+        r.style.transform = (reduced || at <= 0) ? '' : `translateY(${(1-p)*REVEAL_SHIFT}px)`;
+      }
+      for (const f of e.focus){ const [a,b] = f.dataset.focus.split('-').map(parseFloat); f.classList.toggle('focus', speech >= a && speech < b); }
+      for (const { pre, rules } of e.codeFocus){
+        const active = rules.filter(r => speech >= r.a && speech < r.b);
+        pre.querySelectorAll('.ln').forEach((ln, k) => { const n = k+1;
+          ln.classList.toggle('dim', active.length > 0 && !active.some(r => n >= r.l0 && n <= r.l1)); });
+      }
+      $('#source').textContent = e.source ? `${SLIDE} ${e.source}` : '';
+      const inHold = e.hold > 0 && t >= e.audioStart + e.audioDur;
+      holdEl.classList.toggle('think', e.think);
+      holdTxt.textContent = e.think ? LABEL_THINK : LABEL_HOLD;
+      holdEl.style.opacity = inHold ? 1 : 0;
+      holdRing.style.width = inHold ? (Math.round((t - e.audioStart - e.audioDur)/e.hold*20)*5)+'%' : '0';   // 20 steps
+    }
+    return cur;
+  }
+  // Signature of everything visible at time t; identical signature = identical frame.
+  function signature(t){
+    const cur = sceneAt(Math.max(0, Math.min(t, total - 1e-3)));
+    let sig = cur.i + '|' + (+cur.el.style.opacity).toFixed(3);
+    for (const r of cur.reveals) sig += '|' + (+r.style.opacity).toFixed(3) + r.style.transform;
+    for (const f of cur.focus) sig += f.classList.contains('focus') ? 'F' : 'f';
+    cur.el.querySelectorAll('pre.code .ln').forEach(l => sig += l.classList.contains('dim') ? 'd' : 'D');
+    sig += '|' + holdEl.style.opacity + holdRing.style.width.slice(0, 5);
+    return sig;
+  }
+  window.seek = t => { render(t); return signature(t); };
+  window.seekScene = (i, where='end') => {
+    const e = timeline[i];
+    const t = where === 'start' ? e.start + FADE_IN : where === 'mid' ? e.audioStart + e.audioDur*0.5
+            : Math.min(e.audioStart + e.audioDur + Math.max(REVEAL, e.hold*0.5), e.end - FADE_OUT - 0.01);
+    render(t); return t;
+  };
+
+  // ---------- Layout check ----------
+  const SAFE = { l:96, r:1920-96, t:64, b:1080-120 };   // bottom: keep the footer free
+  function minFont(el){
+    if (el.dataset.min) return parseFloat(el.dataset.min);
+    if (el.closest('pre')) return 28;
+    if (el.closest('math')) return 28;
+    if (el.closest('svg')) return 28;
+    if (el.closest('td,th')) return 28;
+    if (/^H[12]$/.test(el.tagName)) return 60;
+    if (el.matches('p,li')) return 34;
+    return 28;
+  }
+  function textLeaves(rootEl){
+    const out = [];
+    rootEl.querySelectorAll('*').forEach(el => {
+      if (el.closest('[data-deko]') || el.closest('template')) return;
+      const own = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+      if (own || el.tagName === 'IMG') out.push(el);
+    });
+    return out;
+  }
+  const describe = el => el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className ? '.'+el.className.trim().split(/\s+/).join('.') : '') + ' "' + (el.textContent||el.getAttribute('src')||'').trim().slice(0,40) + '"';
+  function checkState(e, state){
+    const issues = [], sr = stage.getBoundingClientRect(), s = sr.width/1920;
+    const vis = el => { const cs = getComputedStyle(el); return cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.05 && cs.display !== 'none'; };
+    const leaves = textLeaves(e.el).filter(vis), rects = [];
+    for (const el of leaves){
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) continue;
+      const x0=(r.left-sr.left)/s, x1=(r.right-sr.left)/s, y0=(r.top-sr.top)/s, y1=(r.bottom-sr.top)/s;
+      const settling = el.closest('[data-at]') && parseFloat(getComputedStyle(el.closest('[data-at]')).opacity) < 0.99;
+      if (!settling && (x0 < SAFE.l-1 || x1 > SAFE.r+1 || y0 < SAFE.t-1 || y1 > SAFE.b+1))
+        issues.push({ problem:'outside the safe area', el:describe(el), box:[x0,y0,x1,y1].map(Math.round) });
+      if (el.tagName !== 'IMG'){
+        let fs = parseFloat(getComputedStyle(el).fontSize);
+        if (el.closest('svg') && el.getScreenCTM){ const ctm = el.getScreenCTM(); if (ctm) fs = fs*ctm.a/s; }
+        if (fs < minFont(el)-0.5) issues.push({ problem:`font too small (${fs.toFixed(1)}px < ${minFont(el)}px)`, el:describe(el) });
+        const cr = contrastOf(el);
+        const need = fs >= 60 ? 3 : 4.5;
+        if (cr && cr < need) issues.push({ problem:`low contrast ${cr.toFixed(2)}:1 (< ${need}:1)`, el:describe(el) });
+        if (!el.closest('math') && !el.closest('pre')) rects.push({el, x0,x1,y0,y1});
+      }
+    }
+    const boxed = cs => parseFloat(cs.borderTopWidth) > 0 || (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent');
+    e.el.querySelectorAll('*').forEach(el => {
+      if (el.closest('[data-deko]') || el.closest('svg') || el.closest('math') || !vis(el) || el.tagName === 'IMG') return;
+      if (el.matches('.ln')) return;   // code lines: overflow is measured on the <pre>
+      const cs = getComputedStyle(el);
+      const ox = el.scrollWidth > el.clientWidth + 2, oy = el.scrollHeight > el.clientHeight + 2;
+      if (!(ox || oy)) return;
+      if (cs.overflow !== 'visible' || boxed(cs) || (leaves.includes(el) && ox))
+        issues.push({ problem: el.matches('pre') ? `code too wide/long (${el.scrollWidth}×${el.scrollHeight} in ${el.clientWidth}×${el.clientHeight}) – shorten or split, never wrap`
+                                              : `overflow (${el.scrollWidth}×${el.scrollHeight} in ${el.clientWidth}×${el.clientHeight})`, el:describe(el) });
+    });
+    for (let a=0;a<rects.length;a++) for (let b=a+1;b<rects.length;b++){
+      const A=rects[a], B=rects[b];
+      if (A.el.contains(B.el) || B.el.contains(A.el)) continue;
+      const w=Math.min(A.x1,B.x1)-Math.max(A.x0,B.x0), h=Math.min(A.y1,B.y1)-Math.max(A.y0,B.y0);
+      if (w>4 && h>4){ const small=Math.min((A.x1-A.x0)*(A.y1-A.y0),(B.x1-B.x0)*(B.y1-B.y0));
+        if (w*h/small > 0.04) issues.push({ problem:'texts overlap', el:describe(A.el)+' ↔ '+describe(B.el) }); }
+    }
+    e.el.querySelectorAll('img').forEach(img => {
+      if (!img.naturalWidth){ issues.push({ problem:'image not loaded', el:describe(img) }); return; }
+      const r = img.getBoundingClientRect(), shown = Math.min(r.width/s/img.naturalWidth, r.height/s/img.naturalHeight);
+      if (shown < 0.35) issues.push({ problem:`image heavily downscaled (${Math.round(shown*100)} %) – text in it may be unreadable, use a crop`, el:describe(img) });
+    });
+    return issues.map(x => ({ scene: e.i+1, state, ...x }));
+  }
+  // ---------- Contrast (text color vs. the first opaque background behind it) ----------
+  const rgba = c => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const v = m[1].split(/[ ,/]+/).filter(Boolean).map(parseFloat); return { r:v[0], g:v[1], b:v[2], a: v.length > 3 ? v[3] : 1 }; };
+  const lum = ({r,g,b}) => { const f = x => { x /= 255; return x <= 0.03928 ? x/12.92 : Math.pow((x+0.055)/1.055, 2.4); }; return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b); };
+  function contrastOf(el){
+    if (el.closest('svg') || el.closest('math') || el.closest('.motif')) return null;
+    const cs = getComputedStyle(el);
+    if (cs.webkitTextFillColor && cs.webkitTextFillColor.includes('rgba(0, 0, 0, 0)')) return null;   // gradient text
+    const fg = rgba(cs.color); if (!fg) return null;
+    let n = el, bg = null;
+    while (n && n.nodeType === 1){
+      const b = rgba(getComputedStyle(n).backgroundColor);
+      if (b && b.a > 0.5){ bg = b; break; }
+      n = n.parentElement;
+    }
+    if (!bg) return null;
+    const L1 = lum(fg), L2 = lum(bg);
+    return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+  }
+
+  function checkGlobal(){
+    const issues = [];
+    timeline.forEach(e => {
+      if (!e.caption) issues.push({ scene:e.i+1, state:'-', problem:'no subtitle (<template class="caption"> missing)', el:'section' });
+      if (!e.source && !e.think && e.i > 0) issues.push({ scene:e.i+1, state:'-', problem:'no source (data-source)', el:'section' });
+    });
+    if (!timeline[0]?.chapter) issues.push({ scene:1, state:'-', problem:'first scene has no data-chapter (e.g. "Intro")', el:'section' });
+    return issues;
+  }
+  window.runLayoutCheck = async () => {
+    await document.fonts.ready;
+    const all = [...checkGlobal()];
+    for (const e of timeline) for (const state of ['mid','end']){
+      window.seekScene(e.i, state);
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      all.push(...checkState(e, state));
+    }
+    const report = { ok: all.length === 0, scenes: timeline.length, chapters: chapters.length, captions: captions.length,
+                     duration_s: +total.toFixed(1), issues: all };
+    window.__layoutReport = report;
+    $('#report').textContent = JSON.stringify(report, null, 2);
+    return report;
+  };
+
+  build().then(() => { fit(); render(0); window.__ready = true; if (CHECK) window.runLayoutCheck(); });
+})();
+</script>
+</body>
+</html>
