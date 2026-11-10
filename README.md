@@ -35,3 +35,7 @@ Claude asks about length, voice, language and look before anything is generated.
 **Why does narration fail outside Cowork?** The connector returns `audio/mpeg`, which other Claude surfaces do not pass on. Use Cowork, or pick visual-only.
 
 **Does it cost anything?** A typical narrated video costs a few cents on OpenRouter. Prices are fetched live before you confirm.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
