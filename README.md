@@ -1,96 +1,37 @@
 # Lecture Video Explainer
 
-A Claude skill that converts lecture slides into one narrated MP4 for self-study and exam preparation.
+A Claude skill that turns lecture slides into one narrated MP4 for self-study and exam prep. It reads the PDF, writes a script that sticks to the slides, builds the visuals, generates the voice via OpenRouter and returns a 1080p video with subtitles and chapters.
 
-Give it a PDF. It reads the slides, writes a script that stays faithful to them, builds the visuals, generates the voice through OpenRouter, and returns a 1080p video with subtitles and chapters.
+## Key features
+
+- Narrated video, or visual-only without any cost
+- Nothing invented: every statement and number comes from your slides
+- Exercise sheets are solved step by step, with calculations run before they appear
+- Toggleable subtitles and chapter marks
+- Fact check and layout check before delivery
+
+## Quick start
+
+1. Download `lecture-video-explainer.skill` from the [latest release](../../releases/latest).
+2. In Claude Desktop, add the file under Settings > Skills.
+3. Connect the OpenRouter connector, with some credit on the account.
+4. Upload your slides and ask: "Make me a video from these slides."
+
+Claude asks about length, voice, language and look before anything is generated. No money is spent until you confirm.
 
 ## Requirements
 
-You need an **OpenRouter MCP connection**. The voice is generated with the connector's `generate-speech` tool.
+- **Claude Cowork** if you use Claude. In other surfaces the connector's audio does not reach the video.
+- **OpenRouter connector** for narration. Visual-only mode works without it.
+- ffmpeg and Chromium for rendering. Claude runs them, you install nothing.
 
-If you use Claude, use **Claude Cowork**. In other Claude surfaces the audio from the connector does not reach the video (the tool answers with `Audio content (audio/mpeg) is not currently supported`), so narration fails.
+## Other install options
 
-| Requirement | Detail |
-| --- | --- |
-| OpenRouter MCP | Connected, with credit on the account. A typical video costs a few cents. |
-| Claude Cowork | The supported environment when using Claude. |
-| ffmpeg and Chromium | Used for rendering. Claude runs them, you install nothing. |
+- **Claude Code:** clone the repo into `~/.claude/skills/lecture-video-explainer/`.
+- **Build the .skill yourself:** `mkdir -p build/lecture-video-explainer && cp -R SKILL.md references scripts assets build/lecture-video-explainer/ && (cd build && zip -r ../lecture-video-explainer.skill lecture-video-explainer) && rm -rf build`
 
-Without OpenRouter you can still use visual-only mode: no voice, no cost.
+## FAQ
 
-## Install
+**Why does narration fail outside Cowork?** The connector returns `audio/mpeg`, which other Claude surfaces do not pass on. Use Cowork, or pick visual-only.
 
-The release contains a ready-to-use `.skill` file. No build step needed.
-
-1. Download `lecture-video-explainer.skill` from the [latest release](../../releases/latest).
-2. In Claude Desktop, open Settings, go to the skills section and add the `.skill` file.
-3. Connect the OpenRouter connector.
-4. Upload your slides and ask for a video.
-
-Other ways to install:
-
-- **Claude Code:** copy the `lecture-video-explainer/` folder to `~/.claude/skills/`.
-- **Build the file yourself:** `zip -r lecture-video-explainer.skill lecture-video-explainer -x "*.DS_Store"`
-
-## Usage
-
-Ask in plain words:
-
-```text
-Make me a video from these slides.
-Turn this lecture into a narrated explainer for the exam.
-Mach mir ein Video aus den Folien.
-```
-
-Before anything is generated, Claude asks what it needs to know:
-
-- Short or comprehensive summary
-- AI voice or visual-only
-- Video language (same as the slides, or another)
-- Length, TTS model, and the exact price for that length
-- Optional outline and self-test questions
-- Look: light or dark, and a style (modern, minimal, slide colors, or themed to the topic)
-- Voice: gender, character, pace
-
-No money is spent until you confirm.
-
-## Output
-
-One MP4, 1080p at 30 fps, containing:
-
-- Narration, or on-screen explanations in visual-only mode
-- Diagrams, slide crops, code, SQL, formulas and tables
-- Intro, optional outline with time ranges, summary, optional self-test
-- A toggleable subtitle track and chapter marks
-
-If the PDF is an exercise sheet, the video solves each task step by step. Calculations and queries are run before they go into the script.
-
-## How it works
-
-```text
-PDF > read > ask > script > visuals > narration > timing > checks > MP4
-```
-
-The skill follows three rules:
-
-- **Nothing invented.** Every statement, number and graphic comes from your materials.
-- **Everything readable.** Minimum font sizes, a safe area, and an automatic layout check for clipped or overlapping text.
-- **Steady voice, calm visuals.** No long pauses. Dense graphics stay on screen long enough to read.
-
-Before delivery it runs a layout check, a fact check against the source pages, and a coverage check that every content slide and every open question from the lecture is handled.
-
-## Repository
-
-```text
-lecture-video-explainer/
-  SKILL.md            workflow
-  references/         didactics, visual rules, TTS model selection
-  scripts/            PDF extraction, cost estimate, coverage, palette, renderer, TTS fallback
-  assets/             video template
-```
-
-## Behavior worth knowing
-
-- The TTS model you choose is used for every scene. It is never swapped silently.
-- Prices and models are fetched live from OpenRouter.
-- Changes after delivery regenerate only the affected scenes.
+**Does it cost anything?** A typical narrated video costs a few cents on OpenRouter. Prices are fetched live before you confirm.

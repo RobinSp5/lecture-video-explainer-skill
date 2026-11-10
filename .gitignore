@@ -1,2 +1,9 @@
 .DS_Store
 *.skill
+
+# Local tool state
+.omc/
+
+# Python
+__pycache__/
+*.pyc
